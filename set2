@@ -1,0 +1,132 @@
+//Raspberry Pi Interface with IR (Obstacle) Sensor - program 1
+import RPi.GPIO as GPIO
+import time
+GPIO.setmode(GPIO.BCM)
+GPIO.setup(18, GPIO.IN)
+print("IR Sensor Test - Press Ctrl+C to stop")
+try:
+while True:
+if GPIO.input(18) == GPIO.LOW: # LOW when object is close
+print("Object Detected")
+else:
+print("No Object")
+time.sleep(0.5)
+except KeyboardInterrupt:
+GPIO.cleanup()
+
+//IoT Data Processing with ESP32 + DHT22 +ThingSpeak - program 2
+#include <WiFi.h>
+#include <HTTPClient.h>
+#include <WiFiClientSecure.h>
+#include <DHTesp.h>
+
+const char* ssid = "Wokwi-GUEST";
+const char* password = "";
+
+const char* server = "api.thingspeak.com";
+const int channelID = 1234567;
+const char* writeAPIKey = "XXXXXXXXXXXXXXXX";
+
+#define DHT_PIN 15
+#define LED_ALERT_PIN 2
+
+#define TEMP_HIGH_THRESHOLD 30.0
+#define TEMP_LOW_THRESHOLD 18.0
+#define HUM_HIGH_THRESHOLD 80.0
+
+DHTesp dht;
+WiFiClientSecure client;
+
+void setup() {
+    Serial.begin(115200);
+
+    pinMode(LED_ALERT_PIN, OUTPUT);
+    digitalWrite(LED_ALERT_PIN, LOW);
+
+    dht.setup(DHT_PIN, DHTesp::DHT22);
+
+    WiFi.begin(ssid, password);
+    Serial.print("Connecting to WiFi...");
+    while (WiFi.status() != WL_CONNECTED) {
+        delay(500);
+        Serial.print(".");
+    }
+
+    Serial.println("\nWiFi connected");
+    Serial.print("IP address: ");
+    Serial.println(WiFi.localIP());
+
+    client.setInsecure();
+}
+
+void loop() {
+    static unsigned long lastSend = 0;
+
+    if (millis() - lastSend < 20000) {
+        delay(100);
+        return;
+    }
+
+    lastSend = millis();
+
+    TempAndHumidity data = dht.getTempAndHumidity();
+    if (dht.getStatus() != DHTesp::ERROR_NONE) {
+        Serial.println("DHT read error!");
+        return;
+    }
+
+    float temp = data.temperature;
+    float hum = data.humidity;
+
+    Serial.printf("Temp: %.1f °C | Humidity: %.1f %%\n", temp, hum);
+
+    int alert = 0;
+    String alertMsg = "Normal";
+    digitalWrite(LED_ALERT_PIN, LOW);
+
+    if (temp > TEMP_HIGH_THRESHOLD) {
+        alert = 1;
+        alertMsg = "HIGH TEMP";
+        digitalWrite(LED_ALERT_PIN, HIGH);
+    } 
+    else if (temp < TEMP_LOW_THRESHOLD) {
+        alert = 1;
+        alertMsg = "LOW TEMP";
+        digitalWrite(LED_ALERT_PIN, HIGH);
+    } 
+    else if (hum > HUM_HIGH_THRESHOLD) {
+        alert = 1;
+        alertMsg = "HIGH HUMIDITY";
+        digitalWrite(LED_ALERT_PIN, HIGH);
+    }
+
+    Serial.println("Alert: " + alertMsg);
+
+    if (WiFi.status() == WL_CONNECTED) {
+        HTTPClient http;
+
+        String url = "https://" + String(server) +
+                     "/update?api_key=" + String(writeAPIKey) +
+                     "&field1=" + String(temp, 1) +
+                     "&field2=" + String(hum, 1) +
+                     "&field3=" + String(alert);
+
+        http.begin(client, url);
+        int httpCode = http.GET();
+
+        if (httpCode > 0) {
+            Serial.printf("ThingSpeak Response: %d\n", httpCode);
+            if (httpCode == 200) {
+                Serial.println("Data sent successfully!");
+            }
+        } else {
+            Serial.println("HTTP request failed");
+        }
+
+        http.end();
+    } else {
+        Serial.println("WiFi lost");
+    }
+
+    delay(100);
+}
