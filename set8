@@ -1,0 +1,76 @@
+//Raspberry Pi interface with LED control - Program 1
+import RPi.GPIO as GPIO
+import time
+# Disable warnings (e.g., "GPIO already in use")
+GPIO.setwarnings(False)
+# Use BCM pin numbering
+GPIO.setmode(GPIO.BCM)
+# Set GPIO 17 as output
+LED_PIN = 17
+GPIO.setup(LED_PIN, GPIO.OUT)
+try:
+while True:
+GPIO.output(LED_PIN, True) # LED ON
+time.sleep(1) # 1 second delay
+GPIO.output(LED_PIN, False) # LED OFF
+time.sleep(1) # 1 second delay
+except KeyboardInterrupt:
+# Gracefully clean up on Ctrl+C
+GPIO.cleanup()
+
+//Using Wokwi demonstrating IoT Device Authentication &amp;amp; Access Control using Wi-Fi + MQTT
+username/password authentication. - Program 2
+#include <WiFi.h>
+#include <PubSubClient.h>
+const char* ssid = &quot;Wokwi-GUEST&quot;;
+const char* password = &quot;&quot;;
+const char* mqttServer = &quot;broker.hivemq.com&quot;;
+const int mqttPort = 1883;
+const char* deviceID = &quot;ESP32_Device_001&quot;; 
+const char* mqttUser = &quot;iot_user_demo&quot;; 
+const char* mqttPassword = &quot;iot_pass_demo&quot;; 
+WiFiClient espClient;
+PubSubClient client(espClient);
+void callback(char* topic, byte* payload, unsigned int length) {
+Serial.print(&quot;Message received: &quot;);
+for (int i = 0; i &lt; length; i++) {
+Serial.print((char)payload[i]);
+}
+Serial.println();
+}
+void connectToWiFi() {
+Serial.print(&quot;Connecting to WiFi&quot;);
+WiFi.begin(ssid, password);
+while (WiFi.status() != WL_CONNECTED) {
+delay(500);
+Serial.print(&quot;.&quot;);
+}
+Serial.println(&quot;\nWiFi Connected&quot;);
+}
+void connectToMQTT() {
+while (!client.connected()) {
+Serial.print(&quot;Authenticating device... &quot;);
+if (client.connect(deviceID, mqttUser, mqttPassword)) {
+Serial.println(&quot;SUCCESS&quot;);
+client.subscribe(&quot;iot/auth/demo&quot;);
+} else {
+Serial.print(&quot;FAILED, rc=&quot;);
+Serial.print(client.state());
+delay(2000);
+}
+}
+}
+void setup() {
+Serial.begin(115200);
+connectToWiFi();
+client.setServer(mqttServer, mqttPort);
+client.setCallback(callback);
+}
+void loop() {
+if (!client.connected()) {
+connectToMQTT();
+}
+client.loop();
+client.publish(&quot;iot/auth/demo&quot;, &quot;Authenticated IoT Device Access Granted&quot;);
+delay(5000);
+}
